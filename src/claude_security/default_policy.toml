@@ -1,0 +1,12 @@
+# Exact path components; protected_paths can contain files or directories.
+protected_names = [".env", "credentials"]
+protected_paths = []
+
+# Python regular expressions searched against the literal Bash command.
+[[shell_rules]]
+id = "destructive-rm"
+pattern = '(?i)\brm\s+(?:-[a-zA-Z]*[rR][a-zA-Z]*\s+)*-[a-zA-Z]*[fF][a-zA-Z]*\s+'
+
+[[shell_rules]]
+id = "credential-transfer"
+pattern = '(?i)\b(?:curl|wget)\b.*(?:\.env|credentials)'

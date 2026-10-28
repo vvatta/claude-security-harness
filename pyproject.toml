@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-security-harness"
+version = "0.1.0"
+description = "A small, synthetic Claude Code hook validation harness"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "mypy>=1.11,<2"]
+
+[project.scripts]
+claude-security-hook = "claude_security.hook:main"
+claude-security-validate = "claude_security.scenarios:main"
+
+[tool.setuptools.package-data]
+claude_security = ["default_policy.toml"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
