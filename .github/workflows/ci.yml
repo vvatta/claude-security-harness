@@ -18,3 +18,4 @@ jobs:
         with:
           name: validation-report
           path: validation-report.json
+      - run: docker compose config --quiet

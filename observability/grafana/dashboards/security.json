@@ -1,0 +1,27 @@
+{
+  "uid": "claude-security",
+  "title": "Claude Code hook decisions",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "10s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Policy decisions per minute",
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 0},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [
+        {"refId": "A", "expr": "sum(count_over_time({service_name=\"claude-security-hook\"} | decision=\"deny\" [1m]))", "legendFormat": "denied"},
+        {"refId": "B", "expr": "sum(count_over_time({service_name=\"claude-security-hook\"} | decision=\"pass\" [1m]))", "legendFormat": "passed to Claude permissions"}
+      ]
+    },
+    {
+      "id": 2, "type": "logs", "title": "Hook audit events",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 9},
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"refId": "A", "expr": "{service_name=\"claude-security-hook\"}"}],
+      "options": {"showTime": true, "showLabels": false, "showCommonLabels": false, "wrapLogMessage": true}
+    }
+  ]
+}

@@ -96,3 +96,17 @@ def test_audit_failure_does_not_change_deny(tmp_path: Path) -> None:
     result = hook(json.dumps(event("Read", {"file_path": ".env"}, tmp_path)), CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT="not-a-url")
     assert result.returncode == 0
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_synthetic_audit_requires_loopback(monkeypatch: pytest.MonkeyPatch) -> None:
+    from claude_security import scenarios
+    with pytest.raises(ValueError):
+        scenarios.run("https://example.invalid/v1/logs")
+    endpoints: list[str | None] = []
+    def fake_run(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        endpoints.append(kwargs["env"].get("CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT"))
+        output = '{"hookSpecificOutput":{"permissionDecision":"deny"}}'
+        return subprocess.CompletedProcess([], 0, output, "")
+    monkeypatch.setattr(scenarios.subprocess, "run", fake_run)
+    assert scenarios.run("http://127.0.0.1:4318/v1/logs")["passed"]
+    assert endpoints == ["http://127.0.0.1:4318/v1/logs"] * 3

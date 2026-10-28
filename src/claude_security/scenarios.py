@@ -9,11 +9,16 @@ import subprocess
 import sys
 import tempfile
 from typing import Any
+from urllib.parse import urlsplit
 
 from .policy import evaluate, load_policy
 
 
-def run() -> dict[str, Any]:
+def run(audit_endpoint: str | None = None) -> dict[str, Any]:
+    if audit_endpoint is not None:
+        url = urlsplit(audit_endpoint)
+        if url.scheme != "http" or url.hostname not in {"localhost", "127.0.0.1", "::1"} or url.username or url.password:
+            raise ValueError("synthetic audit endpoint must be a loopback HTTP URL")
     results: list[dict[str, Any]] = []
     with tempfile.TemporaryDirectory(prefix="claude-security-") as directory:
         root = Path(directory)
@@ -26,6 +31,8 @@ def run() -> dict[str, Any]:
         # The runner invokes the hook, not any proposed command. Disable telemetry.
         env = os.environ.copy()
         env.pop("CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT", None)
+        if audit_endpoint:
+            env["CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT"] = audit_endpoint
         env.pop("CLAUDE_SECURITY_POLICY", None)
         policy = load_policy(Path(__file__).with_name("default_policy.toml"))
         for scenario_id, tool, inputs, rule in scenarios:
@@ -46,8 +53,12 @@ def run() -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run synthetic Claude Code hook checks")
     parser.add_argument("--output", type=Path, help="write the JSON report to this path instead of stdout")
+    parser.add_argument("--audit-endpoint", help="optional loopback OTLP/HTTP logs endpoint")
     args = parser.parse_args()
-    report = run()
+    try:
+        report = run(args.audit_endpoint)
+    except ValueError as exc:
+        parser.error(str(exc))
     data = json.dumps(report, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.write_text(data, encoding="utf-8")

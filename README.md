@@ -13,7 +13,31 @@ python -m mypy src tests
 python -m claude_security.scenarios --output validation-report.json
 ```
 
-The report is deterministic, has `schema_version: 1`, and contains three scenarios, each with its expected and observed decision, expected and independently evaluated matched rule, and pass/fail status. The runner exits 1 if a case fails. The hook subprocess reports only its decision, so `matched_rule` is evaluated separately against the same input and default policy; it is not evidence returned by Claude Code. Custom policy and telemetry environment variables are deliberately ignored by the scenario runner.
+The report is deterministic, has `schema_version: 1`, and contains three scenarios, each with its expected and observed decision, expected and independently evaluated matched rule, and pass/fail status. The runner exits 1 if a case fails. The hook subprocess reports only its decision, so `matched_rule` is evaluated separately against the same input and default policy; it is not evidence returned by Claude Code. Custom policy and telemetry environment variables are deliberately ignored by the scenario runner unless `--audit-endpoint` is explicitly provided.
+
+## Try the local dashboard
+
+This optional lab runs Grafana, Loki, and an OpenTelemetry Collector locally using Docker Compose. It creates no cloud resources. With Docker running:
+
+```sh
+docker compose up -d
+python -m claude_security.scenarios --audit-endpoint http://127.0.0.1:4318/v1/logs --output validation-report.json
+```
+
+Open [Grafana](http://localhost:3000), sign in as `admin` / `admin`, and open **Dashboards → Claude Code hook decisions**. The three synthetic requests generate three denied audit events, typically visible after a few seconds. The time series counts all hook decisions arriving at this stack, not individual scenario identities; the JSON report contains the per-scenario results. Repeated runs increase the counts. Export is best effort, so the report can pass even when telemetry is unavailable; if the dashboard is empty, check `docker compose logs otel-collector loki` and Grafana's time range.
+
+The runner accepts only loopback HTTP audit endpoints, so the test does not send network traffic outside the local machine. Docker must download the pinned images on first use. The services use ephemeral container storage; `docker compose down` discards logs. Ports are bound to loopback, but the example Grafana password is public and is suitable only for local experiments.
+
+## Use with Claude Code
+
+A practical example is a project with a `.env` file: install the package and configure the hook as below, start Claude Code from that project, then ask it to read `.env`. When Claude Code proposes a `Read` tool call, the default policy denies it. Ask it to read a normal file to see the normal permission flow. To see these real hook decisions in the dashboard, start Claude Code from a terminal with:
+
+```sh
+export CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT=http://127.0.0.1:4318/v1/logs
+claude
+```
+
+Use fake credentials when experimenting. This demonstration does not prevent all other ways to access the file; read the limitations below. The synthetic runner works independently and does not require Claude Code or an API key.
 
 ## Configure the hook
 
@@ -38,7 +62,7 @@ The packaged [default policy](src/claude_security/default_policy.toml) is illust
 
 ## Optional audit output
 
-Set `CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT` to the **full** OTLP/HTTP logs URL, for example `http://localhost:3100/otlp/v1/logs` for a locally configured Loki endpoint. This sends a minimal OTLP JSON log with timestamp, service name, recognized tool name, and pass/deny outcome. It excludes commands, paths, rule IDs, file contents and credentials. Unrecognized tool names become `other`. Export is synchronous with a one-second timeout and is best effort: failures are noted on stderr and do not alter the decision. This is not durable delivery or tamper-proof auditing. No export occurs by default, including in tests or CI. Configure endpoint access controls and transport independently; this project does not provision services. Loki may require structured metadata enabled; see [Loki OTLP ingestion](https://grafana.com/docs/loki/latest/send-data/otel/).
+Set `CLAUDE_SECURITY_OTLP_LOGS_ENDPOINT` to the **full** OTLP/HTTP logs URL, for example `http://localhost:3100/otlp/v1/logs` for a locally configured Loki endpoint. This sends a minimal OTLP JSON log with timestamp, service name, recognized tool name, and pass/deny outcome. It excludes commands, paths, rule IDs, file contents and credentials. Unrecognized tool names become `other`. Export is synchronous with a one-second timeout and is best effort: failures are noted on stderr and do not alter the decision. This is not durable delivery or tamper-proof auditing. No export occurs by default, including in tests or CI; the synthetic runner exports only when its loopback-only `--audit-endpoint` option is supplied. Configure endpoint access controls and transport independently; this project does not provision services. Loki may require structured metadata enabled; see [Loki OTLP ingestion](https://grafana.com/docs/loki/latest/send-data/otel/).
 
 ## Boundaries and limitations
 
